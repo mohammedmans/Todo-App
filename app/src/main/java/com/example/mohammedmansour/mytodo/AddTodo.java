@@ -1,5 +1,8 @@
 package com.example.mohammedmansour.mytodo;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.app.TimePickerDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.input.InputManager;
@@ -12,16 +15,21 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.TimePicker;
 
 import com.example.mohammedmansour.mytodo.Database.TodoDatabase;
 import com.example.mohammedmansour.mytodo.Model.Todo;
+import com.example.mohammedmansour.mytodo.Receivers.TodoAlarmBroadcastReceiver;
 
 import java.security.PublicKey;
+import java.util.Calendar;
 
-public class AddTodo extends AppCompatActivity {
+public class AddTodo extends AppCompatActivity implements TimePickerDialog.OnTimeSetListener {
 
     Button Add;
-    EditText title, desc, datetime;
+    EditText title, desc;
+    TextView datetime;
     public static Todo todoItem = null;
     Button update_btn, delete_btn;
 
@@ -37,7 +45,7 @@ public class AddTodo extends AppCompatActivity {
         setContentView(R.layout.activity_add_todo);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        if(todoItem != null){
+        if (todoItem != null) {
             String activityTitle = getIntent().getStringExtra("update_todo");
             setTitle(activityTitle);
         }
@@ -82,6 +90,12 @@ public class AddTodo extends AppCompatActivity {
                 updateTodo();
             }
         });
+        datetime.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ShowTimePickerDialog();
+            }
+        });
     }
 
 
@@ -91,6 +105,7 @@ public class AddTodo extends AppCompatActivity {
         String todoTime = datetime.getText().toString();
         Todo todo = new Todo(todoTitle, todoDesc, todoTime);
         TodoDatabase.getDatabase(this).todoDao().AddTodo(todo);
+        StartAlarm();
         finish();
     }
 
@@ -121,8 +136,46 @@ public class AddTodo extends AppCompatActivity {
         todoItem.setDateTime(todoTime);
 
         TodoDatabase.getDatabase(this).todoDao().UpdateTodo(todoItem);
+        StartAlarm();
         todoItem = null;
         finish();
     }
 
+    public void ShowTimePickerDialog() {
+
+        Calendar calendar = Calendar.getInstance();
+
+        TimePickerDialog dialog = new TimePickerDialog(this, this,
+                calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE),
+                false);
+        dialog.show();
+
+    }
+
+    int TaskHour, TaskMinute;
+
+    @Override
+    public void onTimeSet(TimePicker view, int hour, int minute) {
+        TaskHour = hour;
+        TaskMinute = minute;
+        datetime.setText(hour + ":" + minute);
+    }
+
+    public void StartAlarm() {
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(System.currentTimeMillis());
+        calendar.set(Calendar.HOUR_OF_DAY, TaskHour);
+        calendar.set(Calendar.MINUTE, TaskMinute);
+        calendar.set(Calendar.SECOND, 0);
+
+        Intent i = new Intent(this, TodoAlarmBroadcastReceiver.class);
+        i.putExtra("title", title.getText().toString());
+        i.putExtra("desc", desc.getText().toString());
+        PendingIntent pi =
+                PendingIntent.getBroadcast(this, 500, i, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pi);
+    }
 }
